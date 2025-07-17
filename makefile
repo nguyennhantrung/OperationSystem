@@ -3,11 +3,48 @@ ASM=nasm
 SRC_DIR=src
 BUILD_DIR=build
 
-# copy the image and add a floppy header
-# floppy disk will be 1.44MB
-$(BUILD_DIR)/main_floppy.img: $(BUILD_DIR)/main.bin
-	cp $(BUILD_DIR)/main.bin $(BUILD_DIR)/main_floppy.img
-	truncate -s 1440K $(BUILD_DIR)/main_floppy.img
+.PHONY: all floppy_image kernel bootloader clean always
 
-$(BUILD_DIR)/main.bin: $(SRC_DIR)/main.asm
-	$(ASM) $(SRC_DIR)/main.asm -f bin -o $(BUILD_DIR)/main.bin
+#
+# Floppy image
+#
+floppy_image: $(BUILD_DIR)/main_floppy.img
+
+# Copy a Zero binary to main_floppy.img with size 512*2880 ~ 1.44 MB
+# Create FAT12 boot to main_floppy.img
+# Copy bootloader.bin to main_floppy.img
+# Copy kernel.bin to the root directory of that virtual floppy disk, and name it kernel.bin."
+$(BUILD_DIR)/main_floppy.img: bootloader kernel
+	dd if=/dev/zero of=$(BUILD_DIR)/main_floppy.img bs=512 count=2880
+	mkfs.fat -F 12 -n "NBOS" $(BUILD_DIR)/main_floppy.img
+	dd if=$(BUILD_DIR)/bootloader.bin of=$(BUILD_DIR)/main_floppy.img conv=notrunc
+	mcopy -i $(BUILD_DIR)/main_floppy.img $(BUILD_DIR)/kernel.bin "::kernel.bin"
+
+#
+# Bootloader
+#
+bootloader: $(BUILD_DIR)/bootloader.bin
+
+$(BUILD_DIR)/bootloader.bin: always
+	$(ASM) $(SRC_DIR)/bootloader/boot.asm -f bin -o $(BUILD_DIR)/bootloader.bin
+
+#
+# Kernel
+#
+kernel: $(BUILD_DIR)/kernel.bin
+
+$(BUILD_DIR)/kernel.bin: always
+	$(ASM) $(SRC_DIR)/kernel/main.asm -f bin -o $(BUILD_DIR)/kernel.bin
+
+
+#
+# Always
+#
+always:
+	mkdir -p $(BUILD_DIR)
+#
+# Clean
+#
+clean:
+	rm -rf  $(BUILD_DIR)/*
+
