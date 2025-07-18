@@ -86,3 +86,56 @@ returns nothing
 
 - cursor advances after write
 - characters BEL (7), BS (8), LF (A), CR (D) are treated as control codes
+### INT 13,2 - Read Disk Sectors
+[text](https://www.stanislavs.org/helppc/int_13-2.html)
+AH = 02
+AL = number of sectors to read	(1-128 dec.)
+CH = track/cylinder number  (0-1023 dec., see below)
+CL = sector number  (1-17 dec.)
+DH = head number  (0-15 dec.)
+DL = drive number (0=A:, 1=2nd floppy, 80h=drive 0, 81h=drive 1)
+ES:BX = pointer to buffer
+
+On return:
+	AH = status
+	AL = number of sectors read
+	CF = 0 if successful
+	   = 1 if error
+
+- BIOS disk reads should be retried at least three times and the
+ controller should be reset upon error detection
+- be sure ES:BX does not cross a 64K segment boundary or a
+ DMA boundary error will occur
+- many programming references list only floppy disk register values
+- only the disk number is checked for validity
+- the parameters in CX change depending on the number of cylinders;
+ the track/cylinder number is a 10 bit value taken from the 2 high
+ order bits of CL and the 8 bits in CH (low order 8 bits of track):
+
+ |F|E|D|C|B|A|9|8|7|6|5-0|  CX
+  | | | | | | | | | |	`-----	sector number
+  | | | | | | | | `---------  high order 2 bits of track/cylinder
+  `------------------------  low order 8 bits of track/cyl number
+
+
+
+# Disk layout
+Disk is divived into multiple rings called Track/Cylinder
+Each track is divided into pizza slices called Sector
+Floppy Disk can store data in both side of platter
+Each side of platter called a head
+To read or write data, we need Sector number, Cylinder number, head number
+-> This Address scheme is called cylinder head sector (CHS)
+-> This scheme is useful for working with physical Data on disk only
+To work with data, we only care about the beginning, the middle, the end of data
+-> This Address scheme is called Logical Block Addressing
+-> Instead of 3 params, we only need 1 param for addressing data
+The BIOS only support CHS Address => Need to make a conversion ourselves
+## LBA to CHS Coneversion
+In CHS, the cylinder and head start form 0 but sector start from 1
+- sector    = ( LBA % sector_per_track ) + 1
+- head      = ( LBA / sector_per_track ) % head_per_cylinder
+- cylinder  = ( LBA / sector_per_track ) / head_per_cylinder
+
+
+
